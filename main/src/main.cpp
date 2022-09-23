@@ -15,22 +15,50 @@ int main(int argc, char** argv) {
 
 	std::string yuzu_path;
 	app.add_option("--yuzu", yuzu_path, "Yuzu directory with no trailing slash");
+	std::string savefile;
+	app.add_option("--save", savefile, "Savefile to operate on");
+	bool show_info;
+	app.add_flag("-i,--info", show_info, "Show info on savefile");
+	std::string decrypted;
+	app.add_option("--decrypted", decrypted, "Where to save decrypted savefile");
 
 	CLI11_PARSE(app, argc, argv);
 
-	if(!yuzu_path.empty()) {
-		std::ifstream save_dat(yuzu_path + "/save.dat", std::ios::in | std::ios::binary);
+	if(show_info) {
+		std::ifstream save_dat(yuzu_path + "/" + (!savefile.empty() ? savefile : "save.dat"),
+			std::ios::in | std::ios::binary);
 		std::vector<uint8_t> save_dat_encrypted(
 			(std::istreambuf_iterator<char>(save_dat)), std::istreambuf_iterator<char>());
 		save_dat.close();
 
 		auto save_dat_decrypted = MM2YuzuFrontend::Parser::DecryptSaveDat(save_dat_encrypted);
 
-		std::ofstream out_save_dat(yuzu_path + "/save2.dat", std::ios::out | std::ios::binary);
-		out_save_dat.write((const char*)save_dat_decrypted.data(), save_dat_decrypted.size());
-		out_save_dat.close();
+		fmt::print("Found levels:\n{}", MM2YuzuFrontend::Debug::SaveDatInfo(save_dat_decrypted));
+	} else if(!yuzu_path.empty()) {
+		std::ifstream save_dat(yuzu_path + "/" + (!savefile.empty() ? savefile : "save.dat"),
+			std::ios::in | std::ios::binary);
+		std::vector<uint8_t> save_dat_encrypted(
+			(std::istreambuf_iterator<char>(save_dat)), std::istreambuf_iterator<char>());
+		save_dat.close();
+
+		auto save_dat_decrypted = MM2YuzuFrontend::Parser::DecryptSaveDat(save_dat_encrypted);
+
+		if(!decrypted.empty()) {
+			std::ofstream out_save_dat(
+				yuzu_path + "/" + decrypted, std::ios::out | std::ios::binary);
+			out_save_dat.write((const char*)save_dat_decrypted.data(), save_dat_decrypted.size());
+			out_save_dat.close();
+		}
 
 		fmt::print("Found levels:\n{}", MM2YuzuFrontend::Debug::SaveDatInfo(save_dat_decrypted));
+
+		// For testing
+		MM2YuzuFrontend::Parser::DisableLevel(save_dat_decrypted, 120);
+
+		auto save_dat_encrypted_2 = MM2YuzuFrontend::Parser::EncryptSaveDat(save_dat_decrypted);
+		std::ofstream out_save_dat_2(yuzu_path + "/save_new.dat", std::ios::out | std::ios::binary);
+		out_save_dat_2.write((const char*)save_dat_encrypted_2.data(), save_dat_encrypted_2.size());
+		out_save_dat_2.close();
 	}
 
 	/*
